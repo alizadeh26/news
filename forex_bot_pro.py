@@ -210,6 +210,22 @@ def parse_calendar_datetime(date_text: str, time_text: str, base_year: int) -> O
     return best.astimezone(target_tz)
 
 
+def impact_rank(impact: str) -> int:
+    # Higher is more important
+    if impact == "High":
+        return 3
+    if impact == "Medium":
+        return 2
+    return 1
+
+
+def normalize_title(title: str) -> str:
+    # Basic normalization to reduce accidental duplicates
+    t = title.strip().lower()
+    t = re.sub(r"\s+", " ", t)
+    return t
+
+
 def parse_calendar(html: str, month_key: str) -> List[Event]:
     soup = BeautifulSoup(html, "html.parser")
     table = soup.select_one("table.calendar__table")
@@ -223,7 +239,9 @@ def parse_calendar(html: str, month_key: str) -> List[Event]:
 
     now_utc = datetime.now(timezone.utc)
     current_date_text = ""
-    events: List[Event] = []
+
+    # Dedup map: (currency, normalized_title, event_time_iso) -> Event
+    dedup: dict[tuple[str, str, str], Event] = {}
 
     for row in rows:
         row_classes = " ".join(row.get("class", []))
@@ -292,19 +310,31 @@ def parse_calendar(html: str, month_key: str) -> List[Event]:
             continue
 
         raw_text = " ".join(row.stripped_strings)
-        source_id = f"{currency}|{impact}|{title}|{event_dt.isoformat()}"
-        events.append(
-            Event(
-                source_id=source_id,
-                title=title,
-                currency=currency,
-                impact=impact,
-                event_time_utc=event_dt.isoformat(),
-                month_key=month_key,
-                raw_text=raw_text,
-            )
+        event_time_iso = event_dt.isoformat()
+
+        norm_title = normalize_title(title)
+        key = (currency, norm_title, event_time_iso)
+
+        candidate = Event(
+            source_id=f"{currency}|{impact}|{title}|{event_time_iso}",
+            title=title,
+            currency=currency,
+            impact=impact,
+            event_time_utc=event_time_iso,
+            month_key=month_key,
+            raw_text=raw_text,
         )
 
+        existing = dedup.get(key)
+        if existing is None:
+            dedup[key] = candidate
+        else:
+            # Keep the one with higher impact if there is any difference
+            if impact_rank(candidate.impact) > impact_rank(existing.impact):
+                dedup[key] = candidate
+
+    events = list(dedup.values())
+    events.sort(key=lambda e: e.event_time_utc)
     return events
 
 
