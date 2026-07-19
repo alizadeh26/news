@@ -744,12 +744,37 @@ def github_actions_auto_commit() -> None:
 
     try:
         subprocess.run(["git", "config", "user.name", "github-actions[bot]"], check=True)
-        subprocess.run(["git", "config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"], check=True)
-        subprocess.run(["git", "add", DB_PATH, TELEGRAM_OFFSET_FILE], check=False)
+        subprocess.run(
+            [
+                "git",
+                "config",
+                "user.email",
+                "41898282+github-actions[bot]@users.noreply.github.com",
+            ],
+            check=True,
+        )
+
+        paths_to_add = []
+        if os.path.exists(DB_PATH):
+            paths_to_add.append(DB_PATH)
+        else:
+            log(f"DB file not found (skipping add): {DB_PATH}")
+
+        if os.path.exists(TELEGRAM_OFFSET_FILE):
+            paths_to_add.append(TELEGRAM_OFFSET_FILE)
+        else:
+            log(f"Offset file not found (skipping add): {TELEGRAM_OFFSET_FILE}")
+
+        if not paths_to_add:
+            log("No state files found to commit")
+            return
+
+        subprocess.run(["git", "add", *paths_to_add], check=True)
         diff_result = subprocess.run(["git", "diff", "--cached", "--quiet"], check=False)
         if diff_result.returncode == 0:
             log("No state changes to commit")
             return
+
         subprocess.run(["git", "commit", "-m", "Update forex bot state"], check=True)
         subprocess.run(["git", "push"], check=True)
         log("State changes committed and pushed")
