@@ -7,13 +7,25 @@ on:
     - cron: '*/5 * * * *'
     - cron: '*/10 * * * *'
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "Which job(s) to run manually"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - monthly-sync
+          - weekly-refresh
+          - dispatch
+          - telegram-commands
 
 permissions:
   contents: write
 
 jobs:
   run-monthly-sync:
-    if: github.event.schedule == '0 5 1 * *' || github.event_name == 'workflow_dispatch'
+    if: github.event.schedule == '0 5 1 * *' || (github.event_name == 'workflow_dispatch' && (inputs.mode == 'all' || inputs.mode == 'monthly-sync'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -63,7 +75,7 @@ jobs:
         run: python forex_bot_pro.py weekly-refresh
 
   run-dispatcher:
-    if: github.event.schedule == '*/5 * * * *'
+    if: github.event.schedule == '*/5 * * * *' || (github.event_name == 'workflow_dispatch' && (inputs.mode == 'all' || inputs.mode == 'dispatch'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -87,7 +99,7 @@ jobs:
         run: python forex_bot_pro.py dispatch
 
   run-telegram-commands:
-    if: github.event.schedule == '*/10 * * * *'
+    if: github.event.schedule == '*/10 * * * *' || (github.event_name == 'workflow_dispatch' && (inputs.mode == 'all' || inputs.mode == 'telegram-commands'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
