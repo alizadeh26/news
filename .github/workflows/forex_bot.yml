@@ -37,7 +37,9 @@ jobs:
         run: python forex_bot_pro.py monthly-sync
 
   run-weekly-refresh:
-    if: github.event.schedule == '0 5 * * 0'
+    if: |
+      github.event.schedule == '0 5 * * 0' ||
+      (github.event_name == 'workflow_dispatch' && (inputs.mode == 'weekly-refresh' || inputs.mode == 'all'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
